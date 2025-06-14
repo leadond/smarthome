@@ -1,13 +1,25 @@
-import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useState, useEffect } from 'react'
+import { useNavigate, useLocation } from 'react-router-dom'
 import { MdArrowBack, MdCheck, MdInfo } from 'react-icons/md'
+import { useAuthStore } from '../stores/authStore'
+import { integrationService } from '../services/integrationService'
 
 const AccountSetup = () => {
   const navigate = useNavigate()
+  const location = useLocation()
+  const { user } = useAuthStore()
   const [step, setStep] = useState(1)
   const [selectedPlatform, setSelectedPlatform] = useState(null)
   const [isAuthenticating, setIsAuthenticating] = useState(false)
   const [isSuccess, setIsSuccess] = useState(false)
+  const [authError, setAuthError] = useState(null)
+  const [credentials, setCredentials] = useState({
+    email: '',
+    password: '',
+    clientId: '',
+    clientSecret: '',
+    redirectUri: window.location.origin + '/auth-callback'
+  })
   
   const platforms = [
     {
@@ -16,7 +28,9 @@ const AccountSetup = () => {
       description: 'Control your Philips Hue smart lights',
       icon: 'https://images.pexels.com/photos/1036936/pexels-photo-1036936.jpeg?auto=compress&cs=tinysrgb&w=150',
       color: '#01a9e7',
-      popular: true
+      popular: true,
+      authType: 'oauth',
+      oauthUrl: 'https://api.meethue.com/v2/oauth2/authorize'
     },
     {
       id: 'google-home',
@@ -24,7 +38,9 @@ const AccountSetup = () => {
       description: 'Manage your Google Home devices',
       icon: 'https://images.pexels.com/photos/1036936/pexels-photo-1036936.jpeg?auto=compress&cs=tinysrgb&w=150',
       color: '#4285F4',
-      popular: true
+      popular: true,
+      authType: 'oauth',
+      oauthUrl: 'https://accounts.google.com/o/oauth2/auth'
     },
     {
       id: 'amazon-alexa',
@@ -32,7 +48,9 @@ const AccountSetup = () => {
       description: 'Connect with your Alexa-enabled devices',
       icon: 'https://images.pexels.com/photos/1036936/pexels-photo-1036936.jpeg?auto=compress&cs=tinysrgb&w=150',
       color: '#00CAFF',
-      popular: true
+      popular: true,
+      authType: 'oauth',
+      oauthUrl: 'https://www.amazon.com/ap/oa'
     },
     {
       id: 'apple-homekit',
@@ -40,7 +58,9 @@ const AccountSetup = () => {
       description: 'Integrate with your Apple HomeKit accessories',
       icon: 'https://images.pexels.com/photos/1036936/pexels-photo-1036936.jpeg?auto=compress&cs=tinysrgb&w=150',
       color: '#000000',
-      popular: true
+      popular: true,
+      authType: 'manual',
+      setupInstructions: 'HomeKit requires setup through the Apple Home app on your iOS device.'
     },
     {
       id: 'samsung-smartthings',
@@ -48,7 +68,9 @@ const AccountSetup = () => {
       description: 'Connect with your SmartThings ecosystem',
       icon: 'https://images.pexels.com/photos/1036936/pexels-photo-1036936.jpeg?auto=compress&cs=tinysrgb&w=150',
       color: '#15bfff',
-      popular: false
+      popular: false,
+      authType: 'oauth',
+      oauthUrl: 'https://api.smartthings.com/oauth/authorize'
     },
     {
       id: 'nest',
@@ -56,7 +78,9 @@ const AccountSetup = () => {
       description: 'Manage your Nest thermostats and cameras',
       icon: 'https://images.pexels.com/photos/1036936/pexels-photo-1036936.jpeg?auto=compress&cs=tinysrgb&w=150',
       color: '#00afd8',
-      popular: false
+      popular: false,
+      authType: 'oauth',
+      oauthUrl: 'https://accounts.google.com/o/oauth2/auth'
     },
     {
       id: 'sonos',
@@ -64,7 +88,9 @@ const AccountSetup = () => {
       description: 'Control your Sonos speakers and audio system',
       icon: 'https://images.pexels.com/photos/1036936/pexels-photo-1036936.jpeg?auto=compress&cs=tinysrgb&w=150',
       color: '#000000',
-      popular: false
+      popular: false,
+      authType: 'oauth',
+      oauthUrl: 'https://api.sonos.com/login/v3/oauth'
     },
     {
       id: 'ring',
@@ -72,7 +98,9 @@ const AccountSetup = () => {
       description: 'Manage your Ring doorbells and cameras',
       icon: 'https://images.pexels.com/photos/1036936/pexels-photo-1036936.jpeg?auto=compress&cs=tinysrgb&w=150',
       color: '#1e88e5',
-      popular: false
+      popular: false,
+      authType: 'oauth',
+      oauthUrl: 'https://oauth.ring.com/oauth/authorize'
     },
     {
       id: 'ecobee',
@@ -80,7 +108,9 @@ const AccountSetup = () => {
       description: 'Control your ecobee thermostats and sensors',
       icon: 'https://images.pexels.com/photos/1036936/pexels-photo-1036936.jpeg?auto=compress&cs=tinysrgb&w=150',
       color: '#faaf19',
-      popular: false
+      popular: false,
+      authType: 'oauth',
+      oauthUrl: 'https://api.ecobee.com/authorize'
     },
     {
       id: 'lutron',
@@ -88,7 +118,9 @@ const AccountSetup = () => {
       description: 'Manage your Lutron lighting and shades',
       icon: 'https://images.pexels.com/photos/1036936/pexels-photo-1036936.jpeg?auto=compress&cs=tinysrgb&w=150',
       color: '#000000',
-      popular: false
+      popular: false,
+      authType: 'api_key',
+      apiKeyInstructions: 'You need to generate an API key from the Lutron Connect app.'
     },
     {
       id: 'wemo',
@@ -96,7 +128,9 @@ const AccountSetup = () => {
       description: 'Control your WeMo smart plugs and switches',
       icon: 'https://images.pexels.com/photos/1036936/pexels-photo-1036936.jpeg?auto=compress&cs=tinysrgb&w=150',
       color: '#4CAF50',
-      popular: false
+      popular: false,
+      authType: 'upnp',
+      setupInstructions: 'WeMo devices are discovered automatically on your local network.'
     },
     {
       id: 'tplink',
@@ -104,32 +138,137 @@ const AccountSetup = () => {
       description: 'Manage your Kasa smart home devices',
       icon: 'https://images.pexels.com/photos/1036936/pexels-photo-1036936.jpeg?auto=compress&cs=tinysrgb&w=150',
       color: '#4acbd6',
-      popular: false
+      popular: false,
+      authType: 'credentials',
+      setupInstructions: 'You need to provide your TP-Link account credentials.'
     }
   ]
   
   const popularPlatforms = platforms.filter(platform => platform.popular)
   const otherPlatforms = platforms.filter(platform => !platform.popular)
   
+  // Check for platform in query params
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const platformId = params.get('platform');
+    
+    if (platformId) {
+      const platform = platforms.find(p => p.id === platformId);
+      if (platform) {
+        setSelectedPlatform(platform);
+        setStep(2);
+      }
+    }
+  }, [location.search]);
+  
   const handleSelectPlatform = (platform) => {
     setSelectedPlatform(platform)
     setStep(2)
   }
   
-  const handleAuthenticate = (e) => {
+  const handleInputChange = (e) => {
+    const { name, value } = e.target;
+    setCredentials(prev => ({
+      ...prev,
+      [name]: value
+    }));
+  }
+  
+  const handleAuthenticate = async (e) => {
     e.preventDefault()
     setIsAuthenticating(true)
+    setAuthError(null)
     
-    // Simulate authentication process
-    setTimeout(() => {
-      setIsAuthenticating(false)
+    try {
+      // Different authentication flows based on platform type
+      let authResult;
+      
+      switch (selectedPlatform.authType) {
+        case 'oauth':
+          // In a real app, this would redirect to the OAuth provider
+          // For demo purposes, we'll simulate a successful OAuth flow
+          authResult = {
+            accessToken: 'mock-access-token',
+            refreshToken: 'mock-refresh-token',
+            expiresIn: 3600
+          };
+          break;
+          
+        case 'credentials':
+          // Authenticate with username/password
+          if (!credentials.email || !credentials.password) {
+            throw new Error('Email and password are required');
+          }
+          
+          // In a real app, this would call the platform's API
+          authResult = {
+            accessToken: 'mock-access-token',
+            userId: 'mock-user-id'
+          };
+          break;
+          
+        case 'api_key':
+          // Authenticate with API key
+          if (!credentials.apiKey) {
+            throw new Error('API key is required');
+          }
+          
+          // In a real app, this would validate the API key
+          authResult = {
+            apiKey: credentials.apiKey
+          };
+          break;
+          
+        default:
+          throw new Error(`Authentication type ${selectedPlatform.authType} not supported`);
+      }
+      
+      // Store credentials securely
+      await integrationService.storeCredentials(
+        user.id,
+        selectedPlatform,
+        authResult
+      );
+      
       setIsSuccess(true)
       
       // Redirect to success page after a short delay
       setTimeout(() => {
         setStep(3)
       }, 1000)
-    }, 2000)
+    } catch (error) {
+      console.error('Authentication failed:', error);
+      setAuthError(error.message);
+      setIsSuccess(false);
+    } finally {
+      setIsAuthenticating(false);
+    }
+  }
+  
+  const handleOAuthLogin = () => {
+    // In a real app, this would redirect to the OAuth provider
+    // For demo purposes, we'll simulate a successful OAuth flow
+    window.alert('In a production app, this would redirect to the OAuth provider for authentication.');
+    
+    // Simulate successful authentication after a delay
+    setIsAuthenticating(true);
+    setTimeout(() => {
+      setIsAuthenticating(false);
+      setIsSuccess(true);
+      
+      // Redirect to success page after a short delay
+      setTimeout(() => {
+        setStep(3);
+      }, 1000);
+    }, 2000);
+  }
+  
+  const handleApiKeyAuth = () => {
+    // Show API key input form
+    setCredentials(prev => ({
+      ...prev,
+      authMethod: 'api_key'
+    }));
   }
   
   const handleFinish = () => {
@@ -281,84 +420,155 @@ const AccountSetup = () => {
               </div>
             </div>
             
-            <form onSubmit={handleAuthenticate}>
-              <div className="space-y-4 mb-6">
-                <div>
-                  <label htmlFor="email" className="block text-sm font-medium text-secondary-700 mb-1">
-                    Email or Username
-                  </label>
-                  <input
-                    id="email"
-                    type="text"
-                    className="w-full px-4 py-2 border border-secondary-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none transition-colors"
-                    placeholder={`Your ${selectedPlatform.name} account email`}
-                    required
-                  />
-                </div>
-                
-                <div>
-                  <label htmlFor="password" className="block text-sm font-medium text-secondary-700 mb-1">
-                    Password
-                  </label>
-                  <input
-                    id="password"
-                    type="password"
-                    className="w-full px-4 py-2 border border-secondary-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none transition-colors"
-                    placeholder="••••••••"
-                    required
-                  />
-                </div>
+            {authError && (
+              <div className="bg-danger-50 text-danger-700 p-3 rounded-lg mb-6">
+                <p className="text-sm font-medium">{authError}</p>
               </div>
-              
-              <div className="flex items-center justify-between">
-                <button
-                  type="button"
-                  onClick={() => setStep(1)}
-                  className="px-4 py-2 border border-secondary-300 text-secondary-700 rounded-lg hover:bg-secondary-50"
-                >
-                  Back
-                </button>
-                
-                <button
-                  type="submit"
-                  disabled={isAuthenticating || isSuccess}
-                  className={`px-4 py-2 rounded-lg text-white ${
-                    isSuccess 
-                      ? 'bg-success-600' 
-                      : 'bg-primary-600 hover:bg-primary-700'
-                  } transition-colors disabled:opacity-70`}
-                >
-                  {isAuthenticating ? (
-                    <span className="flex items-center">
-                      <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                      </svg>
-                      Connecting...
-                    </span>
-                  ) : isSuccess ? (
-                    <span className="flex items-center">
-                      <MdCheck className="mr-1" size={18} />
-                      Connected
-                    </span>
-                  ) : (
-                    'Connect'
-                  )}
-                </button>
-              </div>
-            </form>
+            )}
             
-            <div className="mt-8 pt-6 border-t border-secondary-200">
-              <h4 className="text-sm font-medium text-secondary-800 mb-2">Alternative connection methods</h4>
-              <div className="flex space-x-3">
-                <button className="px-4 py-2 border border-secondary-300 rounded-lg text-secondary-700 hover:bg-secondary-50 text-sm">
-                  Use OAuth
-                </button>
-                <button className="px-4 py-2 border border-secondary-300 rounded-lg text-secondary-700 hover:bg-secondary-50 text-sm">
-                  Use API Key
+            {selectedPlatform.authType === 'manual' || selectedPlatform.authType === 'upnp' ? (
+              <div className="mb-6">
+                <h4 className="text-sm font-medium text-secondary-800 mb-2">Setup Instructions</h4>
+                <p className="text-secondary-600">
+                  {selectedPlatform.setupInstructions}
+                </p>
+                <button
+                  onClick={() => {
+                    setIsSuccess(true);
+                    setTimeout(() => setStep(3), 1000);
+                  }}
+                  className="mt-4 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700"
+                >
+                  I've Completed Setup
                 </button>
               </div>
-            </div>
+            ) : (
+              <form onSubmit={handleAuthenticate}>
+                {(selectedPlatform.authType === 'credentials' || credentials.authMethod === undefined) && (
+                  <div className="space-y-4 mb-6">
+                    <div>
+                      <label htmlFor="email" className="block text-sm font-medium text-secondary-700 mb-1">
+                        Email or Username
+                      </label>
+                      <input
+                        id="email"
+                        name="email"
+                        type="text"
+                        value={credentials.email}
+                        onChange={handleInputChange}
+                        className="w-full px-4 py-2 border border-secondary-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none transition-colors"
+                        placeholder={`Your ${selectedPlatform.name} account email`}
+                        required
+                      />
+                    </div>
+                    
+                    <div>
+                      <label htmlFor="password" className="block text-sm font-medium text-secondary-700 mb-1">
+                        Password
+                      </label>
+                      <input
+                        id="password"
+                        name="password"
+                        type="password"
+                        value={credentials.password}
+                        onChange={handleInputChange}
+                        className="w-full px-4 py-2 border border-secondary-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none transition-colors"
+                        placeholder="••••••••"
+                        required
+                      />
+                    </div>
+                  </div>
+                )}
+                
+                {credentials.authMethod === 'api_key' && (
+                  <div className="space-y-4 mb-6">
+                    <div>
+                      <label htmlFor="apiKey" className="block text-sm font-medium text-secondary-700 mb-1">
+                        API Key
+                      </label>
+                      <input
+                        id="apiKey"
+                        name="apiKey"
+                        type="text"
+                        value={credentials.apiKey || ''}
+                        onChange={handleInputChange}
+                        className="w-full px-4 py-2 border border-secondary-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none transition-colors"
+                        placeholder="Enter your API key"
+                        required
+                      />
+                    </div>
+                    
+                    {selectedPlatform.apiKeyInstructions && (
+                      <p className="text-sm text-secondary-600">
+                        {selectedPlatform.apiKeyInstructions}
+                      </p>
+                    )}
+                  </div>
+                )}
+                
+                <div className="flex items-center justify-between">
+                  <button
+                    type="button"
+                    onClick={() => setStep(1)}
+                    className="px-4 py-2 border border-secondary-300 text-secondary-700 rounded-lg hover:bg-secondary-50"
+                  >
+                    Back
+                  </button>
+                  
+                  <button
+                    type="submit"
+                    disabled={isAuthenticating || isSuccess}
+                    className={`px-4 py-2 rounded-lg text-white ${
+                      isSuccess 
+                        ? 'bg-success-600' 
+                        : 'bg-primary-600 hover:bg-primary-700'
+                    } transition-colors disabled:opacity-70`}
+                  >
+                    {isAuthenticating ? (
+                      <span className="flex items-center">
+                        <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        Connecting...
+                      </span>
+                    ) : isSuccess ? (
+                      <span className="flex items-center">
+                        <MdCheck className="mr-1" size={18} />
+                        Connected
+                      </span>
+                    ) : (
+                      'Connect'
+                    )}
+                  </button>
+                </div>
+              </form>
+            )}
+            
+            {selectedPlatform.authType !== 'manual' && selectedPlatform.authType !== 'upnp' && (
+              <div className="mt-8 pt-6 border-t border-secondary-200">
+                <h4 className="text-sm font-medium text-secondary-800 mb-2">Alternative connection methods</h4>
+                <div className="flex space-x-3">
+                  {selectedPlatform.authType === 'oauth' || selectedPlatform.oauthUrl ? (
+                    <button 
+                      onClick={handleOAuthLogin}
+                      className="px-4 py-2 border border-secondary-300 rounded-lg text-secondary-700 hover:bg-secondary-50 text-sm"
+                    >
+                      Use OAuth
+                    </button>
+                  ) : null}
+                  
+                  {selectedPlatform.authType === 'api_key' || credentials.authMethod === 'api_key' ? null : (
+                    <button 
+                      onClick={handleApiKeyAuth}
+                      className="px-4 py-2 border border-secondary-300 rounded-lg text-secondary-700 hover:bg-secondary-50 text-sm"
+                    >
+                      Use API Key
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
         )}
         
